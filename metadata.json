@@ -1,0 +1,6 @@
+{
+  "name": "SiteCrew",
+  "description": "Construction site worker attendance tracking with GPS location logging, offline sync, payroll generation, and online wage payments.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
