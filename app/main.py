@@ -966,7 +966,8 @@ def sync_status():
         }
 
 # Mount static folder
-STATIC_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static")
+ROOT_DIR = os.path.dirname(os.path.dirname(__file__))
+STATIC_DIR = os.path.join(ROOT_DIR, "static")
 if os.path.exists(STATIC_DIR):
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
@@ -976,6 +977,31 @@ def serve_index():
     if os.path.exists(index_file):
         return FileResponse(index_file)
     return {"message": "Krishna Enterprises API is online"}
+
+@app.get("/portal")
+def serve_portal():
+    index_file = os.path.join(STATIC_DIR, "index.html")
+    return FileResponse(index_file)
+
+@app.get("/about.html")
+def serve_about():
+    p = os.path.join(ROOT_DIR, "about.html")
+    return FileResponse(p) if os.path.exists(p) else FileResponse(os.path.join(STATIC_DIR, "index.html"))
+
+@app.get("/services.html")
+def serve_services():
+    p = os.path.join(ROOT_DIR, "services.html")
+    return FileResponse(p) if os.path.exists(p) else FileResponse(os.path.join(STATIC_DIR, "index.html"))
+
+@app.get("/gallery.html")
+def serve_gallery():
+    p = os.path.join(ROOT_DIR, "gallery.html")
+    return FileResponse(p) if os.path.exists(p) else FileResponse(os.path.join(STATIC_DIR, "index.html"))
+
+@app.get("/contact.html")
+def serve_contact():
+    p = os.path.join(ROOT_DIR, "contact.html")
+    return FileResponse(p) if os.path.exists(p) else FileResponse(os.path.join(STATIC_DIR, "index.html"))
 
 @app.get("/sw.js")
 def serve_service_worker():
