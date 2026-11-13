@@ -972,13 +972,18 @@ if os.path.exists(STATIC_DIR):
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 @app.get("/")
+@app.get("/index.html")
 def serve_index():
-    index_file = os.path.join(STATIC_DIR, "index.html")
-    if os.path.exists(index_file):
-        return FileResponse(index_file)
+    root_index = os.path.join(ROOT_DIR, "index.html")
+    if os.path.exists(root_index):
+        return FileResponse(root_index)
+    static_index = os.path.join(STATIC_DIR, "index.html")
+    if os.path.exists(static_index):
+        return FileResponse(static_index)
     return {"message": "Krishna Enterprises API is online"}
 
 @app.get("/portal")
+@app.get("/erp")
 def serve_portal():
     index_file = os.path.join(STATIC_DIR, "index.html")
     return FileResponse(index_file)
