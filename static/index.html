@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Krishna Enterprises - Construction ERP & Crew Tracker</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+  <!-- Top App Header -->
+  <header>
+    <div class="brand-section">
+      <div class="brand-logo">KE</div>
+      <div class="brand-titles">
+        <h1 id="firm-header-title">Krishna Enterprises</h1>
+        <p id="firm-sub-title">Contractor ERP • Dual-Role Construction Portal</p>
+      </div>
+    </div>
+
+    <div class="header-actions">
+      <!-- Connectivity & Pending Sync Badge -->
+      <div id="network-status-badge" class="status-badge status-online">
+        <span class="pulse-dot green"></span> Live Server
+      </div>
+      <span id="pending-sync-count" class="badge-pending" style="display: none;">0 pending</span>
+
+      <!-- Dual Role Switcher -->
+      <div class="role-toggle">
+        <button id="role-btn-admin" class="role-toggle-btn active" onclick="App.switchRole('admin')">Admin</button>
+        <button id="role-btn-worker" class="role-toggle-btn" onclick="App.switchRole('worker')">Worker</button>
+      </div>
+
+      <!-- Current Site Selector in Header -->
+      <select id="site-select-header" class="site-select-filter" style="max-width: 170px;"></select>
+
+      <button class="btn btn-outline btn-sm" onclick="App.openAuthModal()">
+        <span id="current-user-display">Sign In</span>
+      </button>
+      <button class="btn btn-danger btn-sm" onclick="App.signOut()" title="Sign Out">Sign Out</button>
+    </div>
+  </header>
+
+  <!-- Live GPS Telemetry Banner -->
+  <div class="telemetry-banner">
+    <div class="telemetry-item">
+      <span class="telemetry-label">Live Device GPS:</span>
+      <span id="telemetry-live-coords" class="telemetry-val">Detecting GPS...</span>
+    </div>
+    <div class="telemetry-item">
+      <span class="telemetry-label">Fixed Site Center:</span>
+      <span id="telemetry-site-coords" class="telemetry-val">Loading party perimeter...</span>
+    </div>
+    <div class="telemetry-item">
+      <span class="telemetry-label">Geofence Status:</span>
+      <span id="telemetry-geofence-badge" class="geofence-pill inside">Checking Boundary...</span>
+    </div>
+    <button class="btn btn-outline btn-sm" style="color: #cbd5e1; border-color: #475569;" onclick="App.lockCurrentGpsForSite(App.state.selectedSiteId)">
+      Lock Current GPS
+    </button>
+  </div>
+
+  <!-- ADMIN CONSOLE -->
+  <div id="admin-portal" class="portal-view active">
+    <!-- Navigation Tabs -->
+    <nav class="app-nav">
+      <button class="nav-tab active" data-tab="attendance">Daily Attendance</button>
+      <button class="nav-tab" data-tab="roster">Crew Roster</button>
+      <button class="nav-tab" data-tab="parties">Parties & Sites</button>
+      <button class="nav-tab" data-tab="analytics">Wage Trends & Analytics</button>
+      <button class="nav-tab" data-tab="ledger">Financial Ledger</button>
+      <button class="nav-tab" data-tab="payroll">Payroll & Disbursals</button>
+      <button class="nav-tab" data-tab="sync">Sync Center</button>
+    </nav>
+
+    <main>
+      <!-- 1. Daily Attendance Tab -->
+      <div id="tab-attendance" class="tab-pane active">
+        <div class="section-header">
+          <div>
+            <h2 class="section-title">Admin Attendance Console</h2>
+            <p class="text-muted" style="font-size: 0.8rem;">Daily muster roll, GPS validation audits & overtime tracking</p>
+          </div>
+          <div class="section-actions">
+            <button class="btn btn-outline btn-sm" onclick="App.markAllFullDay()">Mark All Full Day</button>
+            <button class="btn btn-primary" onclick="App.handleSaveAttendanceBatch()">Save Batch Attendance</button>
+          </div>
+        </div>
+
+        <!-- Date Selector Strip -->
+        <div class="date-selector-bar">
+          <span style="font-size: 0.85rem; font-weight: 700; color: #475569;">Select Date:</span>
+          <button class="date-btn active" data-offset="0">Today</button>
+          <button class="date-btn" data-offset="1">Yesterday</button>
+          <button class="date-btn" data-offset="2">2 Days Ago</button>
+          <input type="date" id="att-custom-date" class="form-input" style="width: 150px; padding: 5px 8px;" />
+        </div>
+
+        <div id="attendance-cards-list" class="cards-grid">
+          <!-- Dynamic attendance cards -->
+        </div>
+      </div>
+
+      <!-- 2. Crew Roster Tab -->
+      <div id="tab-roster" class="tab-pane">
+        <div class="section-header">
+          <div>
+            <h2 class="section-title">Crew Roster & Trade Configuration</h2>
+            <p class="text-muted" style="font-size: 0.8rem;">CRUD workers, dynamic manual trade entries, UPI/bank accounts</p>
+          </div>
+          <div class="section-actions">
+            <button class="btn btn-outline" onclick="App.openInviteCodesModal()">Worker Join Codes</button>
+            <button class="btn btn-primary" onclick="App.openAddWorkerModal()">+ Add New Worker</button>
+          </div>
+        </div>
+
+        <!-- Dynamic Role Filter Chips -->
+        <div id="trade-chips-container" class="trade-chips-bar">
+          <!-- Populated from active crew trades -->
+        </div>
+
+        <div id="roster-cards-grid" class="cards-grid">
+          <!-- Crew cards populated by JS -->
+        </div>
+      </div>
+
+      <!-- 3. Construction Parties / Sites Tab -->
+      <div id="tab-parties" class="tab-pane">
+        <div class="section-header">
+          <div>
+            <h2 class="section-title">Construction Parties & GPS Geofences</h2>
+            <p class="text-muted" style="font-size: 0.8rem;">Multi-site perimeters, client contracts and coordinate locks</p>
+          </div>
+          <div class="section-actions">
+            <button class="btn btn-primary" onclick="App.openAddSiteModal()">+ Add Construction Site</button>
+          </div>
+        </div>
+
+        <div id="sites-cards-grid" class="cards-grid">
+          <!-- Sites cards -->
+        </div>
+      </div>
+
+      <!-- 4. Analytics & Wage Trends Tab -->
+      <div id="tab-analytics" class="tab-pane">
+        <div class="section-header">
+          <div>
+            <h2 class="section-title">Analytics & Data Visualization</h2>
+            <p class="text-muted" style="font-size: 0.8rem;">7-Day gross wage curves & daily attendance consistency rates</p>
+          </div>
+        </div>
+
+        <!-- Stats Overview Cards -->
+        <div class="cards-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin-bottom: 20px;">
+          <div class="card">
+            <div class="card-subtitle">7-Day Gross Wages</div>
+            <div id="stat-7day-wage" class="card-title" style="font-size: 1.6rem; color: #059669;">₹0</div>
+          </div>
+          <div class="card">
+            <div class="card-subtitle">Avg Attendance Consistency</div>
+            <div id="stat-7day-consistency" class="card-title" style="font-size: 1.6rem; color: #d97706;">0%</div>
+          </div>
+          <div class="card">
+            <div class="card-subtitle">Total Overtime Hours</div>
+            <div id="stat-7day-ot" class="card-title" style="font-size: 1.6rem; color: #8b5cf6;">0 hrs</div>
+          </div>
+        </div>
+
+        <!-- Interactive Canvas Chart -->
+        <div class="card" style="padding: 20px; overflow: hidden;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <div style="font-weight: 700; font-size: 0.95rem;">Gross Wage Curve (Gradient Area) & Attendance Consistency (Bars)</div>
+            <span style="font-size: 0.75rem; color: #64748b;">Hover or scrub to inspect data points</span>
+          </div>
+          <div style="position: relative; width: 100%; min-height: 260px;">
+            <canvas id="wageTrendsChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- 5. Two-Column Financial Ledger Tab -->
+      <div id="tab-ledger" class="tab-pane">
+        <div class="section-header">
+          <div>
+            <h2 class="section-title">Two-Column Worker Financial Ledger</h2>
+            <p class="text-muted" style="font-size: 0.8rem;">Dual-column accounting: Column 1 Paid to Worker vs Column 2 Worker Paying/Used</p>
+          </div>
+        </div>
+
+        <div class="card" style="margin-bottom: 20px;">
+          <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+            <label style="font-weight: 700; font-size: 0.85rem;">Select Worker:</label>
+            <select id="ledger-worker-select" class="form-select" style="max-width: 250px;" onchange="App.openWorkerLedger(this.value)">
+              <option value="">-- Choose Worker --</option>
+            </select>
+            <button class="btn btn-primary btn-sm" onclick="App.openAddLedgerEntryModal()">+ Add Ledger Transaction</button>
+          </div>
+        </div>
+
+        <!-- Balance Summary Card -->
+        <div class="balance-summary-card">
+          <div class="balance-item">
+            <h5>Worker</h5>
+            <h3 id="ledger-worker-name" style="font-size: 1.15rem;">Select Worker</h3>
+            <p id="ledger-worker-phone" style="font-size: 0.75rem; color: #94a3b8;"></p>
+          </div>
+          <div class="balance-item">
+            <h5>Column 1: Total Paid / Earned</h5>
+            <h3 id="ledger-total-paid" style="color: #34d399;">₹0</h3>
+          </div>
+          <div class="balance-item">
+            <h5>Column 2: Total Used / Deductions</h5>
+            <h3 id="ledger-total-used" style="color: #f87171;">₹0</h3>
+          </div>
+          <div class="balance-item">
+            <h5>Net Balance</h5>
+            <h3 id="ledger-net-balance" style="color: #fbbf24;">₹0</h3>
+            <span id="ledger-balance-status" class="badge badge-success">Clean Balance</span>
+          </div>
+        </div>
+
+        <!-- Two Columns Container -->
+        <div class="ledger-container">
+          <!-- Column 1: Paid to Worker / Earned -->
+          <div class="ledger-column">
+            <div class="ledger-column-header col-paid-header">
+              <span>Column 1: Paid to Worker / Earned</span>
+              <span style="font-size: 0.75rem;">(Salary, Advances, OT Pay)</span>
+            </div>
+            <div id="ledger-col-paid-list">
+              <div class="ledger-entry-item text-muted"><p>Select a worker to inspect records</p></div>
+            </div>
+          </div>
+
+          <!-- Column 2: Worker Paying / Used -->
+          <div class="ledger-column">
+            <div class="ledger-column-header col-used-header">
+              <span>Column 2: Worker Paying / Used</span>
+              <span style="font-size: 0.75rem;">(Tools, Fuel, Deductions, Repayment)</span>
+            </div>
+            <div id="ledger-col-used-list">
+              <div class="ledger-entry-item text-muted"><p>Select a worker to inspect records</p></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 6. Payroll & Online Wage Payments Tab -->
+      <div id="tab-payroll" class="tab-pane">
+        <div class="section-header">
+          <div>
+            <h2 class="section-title">Payroll & Online Wage Payments</h2>
+            <p class="text-muted" style="font-size: 0.8rem;">Automated calculation with 1.5x OT, itemized wage slips & UPI deep-links</p>
+          </div>
+          <div class="section-actions">
+            <span style="font-weight: 600; font-size: 0.85rem; margin-right: 4px;">Cycle:</span>
+            <button class="btn btn-outline btn-sm payroll-period-btn active" data-period="7days" onclick="App.setPayrollPeriod('7days')">Past 7 Days</button>
+            <button class="btn btn-outline btn-sm payroll-period-btn" data-period="14days" onclick="App.setPayrollPeriod('14days')">Past 14 Days</button>
+            <button class="btn btn-outline btn-sm payroll-period-btn" data-period="30days" onclick="App.setPayrollPeriod('30days')">Past 30 Days</button>
+            <button class="btn btn-outline btn-sm payroll-period-btn" data-period="this_month" onclick="App.setPayrollPeriod('this_month')">This Month</button>
+          </div>
+        </div>
+
+        <!-- Payroll Metric Box -->
+        <div class="balance-summary-card" style="margin-bottom: 20px;">
+          <div class="balance-item">
+            <h5>Total Net Payable for Cycle</h5>
+            <h3 id="payroll-total-amount" style="color: #34d399;">₹0</h3>
+          </div>
+          <div class="balance-item">
+            <h5>Active Eligible Crew</h5>
+            <h3 id="payroll-worker-count">0 Workers</h3>
+          </div>
+          <div class="balance-item">
+            <h5>Disbursal Modes</h5>
+            <p style="font-size: 0.85rem; color: #cbd5e1;">Instant UPI Intent • Direct NEFT/IMPS • Cash Vouchers</p>
+          </div>
+        </div>
+
+        <div class="data-table-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Worker & Trade</th>
+                <th>Attendance</th>
+                <th>Overtime (1.5x)</th>
+                <th>Gross Wage</th>
+                <th>Deductions / Advances</th>
+                <th>Net Payable</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="payroll-table-body">
+              <!-- Payroll rows populated by JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 7. Sync Center Tab -->
+      <div id="tab-sync" class="tab-pane">
+        <div class="section-header">
+          <div>
+            <h2 class="section-title">Offline-First Storage & Sync Center</h2>
+            <p class="text-muted" style="font-size: 0.8rem;">IndexedDB on-device persistence, network status & chronological reconciliation audit</p>
+          </div>
+          <div class="section-actions">
+            <button id="btn-manual-sync" class="btn btn-primary" onclick="KrishnaSync.triggerAutoSync()">Reconcile & Sync Now</button>
+          </div>
+        </div>
+
+        <div class="card" style="margin-bottom: 20px;">
+          <div id="sync-net-state" style="font-size: 0.9rem; font-weight: 600;">
+            Checking connectivity state...
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+          <!-- Pending Queue -->
+          <div class="card">
+            <h3 style="font-size: 1rem; margin-bottom: 12px; font-weight: 700;">Pending Sync Queue (IndexedDB)</h3>
+            <div id="sync-queue-list">
+              <!-- Pending sync items -->
+            </div>
+          </div>
+
+          <!-- Audit Logs -->
+          <div class="card">
+            <h3 style="font-size: 1rem; margin-bottom: 12px; font-weight: 700;">Chronological Reconciliation Audit Log</h3>
+            <div id="sync-log-list" style="max-height: 400px; overflow-y: auto;">
+              <!-- Sync logs -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- WORKER PORTAL VIEW -->
+  <div id="worker-portal" class="portal-view">
+    <main>
+      <div class="section-header">
+        <div>
+          <h2 class="section-title">Worker Self-Service Portal</h2>
+          <p class="text-muted" style="font-size: 0.8rem;">Personal clock-in, geofence verification & financial ledger review</p>
+        </div>
+        <div class="section-actions">
+          <button class="btn btn-outline" onclick="App.openWorkerJoinModal()">Join Party with Passkey</button>
+        </div>
+      </div>
+
+      <!-- Worker Identity Card -->
+      <div class="card" style="margin-bottom: 20px; border-left: 6px solid #f59e0b;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 12px;">
+          <div>
+            <h2 id="w-portal-name" style="font-size: 1.4rem; font-weight: 800; color: #0f172a;">Ramesh Kumar</h2>
+            <p id="w-portal-trade" style="color: #64748b; font-weight: 600;">Master Mason</p>
+            <p id="w-portal-phone" style="font-size: 0.85rem; color: #475569; margin-top: 4px;">+91 9876543210</p>
+          </div>
+          <div style="text-align: right;">
+            <div style="font-size: 0.75rem; color: #64748b; text-transform: uppercase;">Daily Wage Rate</div>
+            <div id="w-portal-wage" style="font-size: 1.4rem; font-weight: 800; color: #059669;">₹850/day</div>
+          </div>
+        </div>
+
+        <hr style="margin: 16px 0; border: none; border-top: 1px solid #e2e8f0;">
+
+        <!-- Assigned Site & Geofence Status -->
+        <div style="margin-bottom: 16px;">
+          <div style="font-size: 0.8rem; font-weight: 700; color: #475569; text-transform: uppercase; margin-bottom: 4px;">Assigned Construction Party</div>
+          <div id="w-portal-site-name" style="font-size: 1.05rem; font-weight: 700; color: #0f172a;">Krishna Heights Phase 1</div>
+          <div id="w-portal-site-addr" style="font-size: 0.8rem; color: #64748b; margin-bottom: 8px;">Plot B-14, Sector 62, Noida, UP</div>
+          <div>
+            <span id="w-portal-gps-status" class="geofence-pill inside">Checking Geofence...</span>
+          </div>
+        </div>
+
+        <!-- Clock-in CTA -->
+        <button class="btn btn-success" style="width: 100%; padding: 14px; font-size: 1.05rem;" onclick="App.handleWorkerSelfClockIn()">
+          ✓ Clock In Now (GPS Geofence Verified)
+        </button>
+      </div>
+
+      <!-- Worker Personal Financial Ledger -->
+      <div class="section-header">
+        <h3 class="section-title" style="font-size: 1.1rem;">My Financial Ledger</h3>
+      </div>
+
+      <div class="balance-summary-card" style="margin-bottom: 20px;">
+        <div class="balance-item">
+          <h5>Total Wages & Advances Received</h5>
+          <h3 id="w-ledger-paid" style="color: #34d399;">₹0</h3>
+        </div>
+        <div class="balance-item">
+          <h5>Total Deductions / Expenses Used</h5>
+          <h3 id="w-ledger-used" style="color: #f87171;">₹0</h3>
+        </div>
+        <div class="balance-item">
+          <h5>Current Net Balance</h5>
+          <h3 id="w-ledger-balance" style="color: #fbbf24;">₹0</h3>
+        </div>
+      </div>
+
+      <div class="card">
+        <h4 style="font-size: 0.9rem; font-weight: 700; margin-bottom: 12px;">Transaction History</h4>
+        <div id="w-ledger-entries-list">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- MODALS -->
+
+  <!-- 1. Authentication Modal -->
+  <div id="auth-modal" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title">Sign In to Krishna Enterprises</h3>
+        <button class="modal-close" onclick="App.closeModal('auth-modal')">&times;</button>
+      </div>
+
+      <!-- One-Tap Google Authentication -->
+      <div style="margin-bottom: 20px;">
+        <label class="form-label">Continue with Google (One-Tap)</label>
+        <button class="btn btn-outline" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; padding: 10px;" onclick="App.handleGoogleSignIn()">
+          <svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/></svg>
+          Sign in with Google
+        </button>
+      </div>
+
+      <div style="text-align: center; color: #94a3b8; font-size: 0.8rem; margin-bottom: 16px;">— OR USE MOBILE PHONE / OTP —</div>
+
+      <!-- Phone Number & OTP / PIN -->
+      <div class="form-group">
+        <label class="form-label">Mobile Number</label>
+        <input type="tel" id="login-phone" class="form-input" placeholder="+91 9876543210" value="+919876500000" />
+      </div>
+
+      <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+        <button class="btn btn-secondary btn-sm" style="flex: 1;" onclick="App.handleSendOtp()">Send 6-Digit SMS OTP</button>
+      </div>
+
+      <!-- 6-digit OTP verification dialog -->
+      <div id="otp-verification-dialog" style="display: none; background: #f8fafc; border: 1px solid #cbd5e1; padding: 12px; border-radius: 8px; margin-bottom: 14px;">
+        <label class="form-label">Enter 6-Digit SMS Code</label>
+        <div style="display: flex; gap: 8px;">
+          <input type="text" id="login-otp-code" class="form-input" placeholder="123456" maxlength="6" style="letter-spacing: 4px; font-weight: 700; text-align: center;" />
+          <button class="btn btn-primary btn-sm" onclick="App.handleVerifyOtp()">Verify OTP</button>
+        </div>
+        <p id="otp-demo-hint" style="font-size: 0.75rem; color: #059669; margin-top: 6px;"></p>
+      </div>
+
+      <!-- Passcode PIN Login for Returning Admin / Worker -->
+      <div class="form-group">
+        <label class="form-label">Admin Passcode PIN (Default: 1234)</label>
+        <input type="password" id="login-pin-input" class="form-input" placeholder="4-digit PIN" maxlength="4" />
+      </div>
+
+      <button class="btn btn-primary" style="width: 100%;" onclick="App.handlePinLogin()">Log In with PIN</button>
+    </div>
+  </div>
+
+  <!-- 2. Construction Site Modal -->
+  <div id="site-modal" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title">Construction Site & Geofence</h3>
+        <button class="modal-close" onclick="App.closeModal('site-modal')">&times;</button>
+      </div>
+      <input type="hidden" id="site-modal-id" />
+      <div class="form-group">
+        <label class="form-label">Project / Site Name</label>
+        <input type="text" id="site-modal-name" class="form-input" placeholder="e.g. Krishna Heights Phase 2" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Client Name</label>
+        <input type="text" id="site-modal-client" class="form-input" placeholder="e.g. DLF / Godrej Infra" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Address</label>
+        <input type="text" id="site-modal-address" class="form-input" placeholder="Plot / Sector / Road address" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Default Daily Wage (₹)</label>
+        <input type="number" id="site-modal-wage" class="form-input" value="750" />
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+        <div class="form-group">
+          <label class="form-label">Latitude</label>
+          <input type="number" step="0.000001" id="site-modal-lat" class="form-input" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Longitude</label>
+          <input type="number" step="0.000001" id="site-modal-lng" class="form-input" />
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Geofence Radius (meters)</label>
+        <input type="number" id="site-modal-radius" class="form-input" value="150" />
+      </div>
+      <button class="btn btn-outline btn-sm" style="margin-bottom: 14px;" onclick="App.useCurrentGpsInModal()">
+        Lock Current Device GPS Coordinates
+      </button>
+      <button class="btn btn-primary" style="width: 100%;" onclick="App.handleSaveSite()">Save Site Geofence</button>
+    </div>
+  </div>
+
+  <!-- 3. Worker Modal -->
+  <div id="worker-modal" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title">Crew Member Profile</h3>
+        <button class="modal-close" onclick="App.closeModal('worker-modal')">&times;</button>
+      </div>
+      <input type="hidden" id="worker-modal-id" />
+      <div class="form-group">
+        <label class="form-label">Worker Full Name</label>
+        <input type="text" id="worker-modal-name" class="form-input" placeholder="e.g. Ramesh Kumar" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Mobile Number</label>
+        <input type="tel" id="worker-modal-phone" class="form-input" placeholder="+91 9876543210" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Assigned Construction Party</label>
+        <select id="worker-modal-site" class="form-select"></select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Manual Trade / Role Title (Type Custom Role)</label>
+        <input type="text" id="worker-modal-trade" class="form-input" placeholder="e.g. Master Mason, Tower Crane Operator, Welder" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Daily Wage (₹)</label>
+        <input type="number" id="worker-modal-wage" class="form-input" value="750" />
+        <small style="color: #64748b; font-size: 0.75rem;">Hourly rate calculated automatically (Daily Wage / 8)</small>
+      </div>
+      <div class="form-group">
+        <label class="form-label">UPI ID (VPA)</label>
+        <input type="text" id="worker-modal-upi" class="form-input" placeholder="e.g. ramesh@okaxis" />
+      </div>
+      <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 8px;">
+        <div class="form-group">
+          <label class="form-label">Bank Account Number</label>
+          <input type="text" id="worker-modal-bank" class="form-input" placeholder="30981245678" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">IFSC Code</label>
+          <input type="text" id="worker-modal-ifsc" class="form-input" placeholder="SBIN0001234" />
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Emergency Contact</label>
+        <input type="tel" id="worker-modal-emergency" class="form-input" placeholder="+91 9811122233" />
+      </div>
+      <button class="btn btn-primary" style="width: 100%;" onclick="App.handleSaveWorker()">Save Worker Details</button>
+    </div>
+  </div>
+
+  <!-- 4. Invite Codes Modal -->
+  <div id="invite-modal" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title">Worker Join Passkeys (Single-Use)</h3>
+        <button class="modal-close" onclick="App.closeModal('invite-modal')">&times;</button>
+      </div>
+
+      <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 14px; margin-bottom: 16px;">
+        <h4 style="font-size: 0.9rem; font-weight: 700; margin-bottom: 8px;">Generate New Join Passkey</h4>
+        <div class="form-group">
+          <label class="form-label">Target Site</label>
+          <select id="invite-site-select" class="form-select"></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Custom Trade / Role</label>
+          <input type="text" id="invite-trade-input" class="form-input" placeholder="e.g. Shuttering Carpenter" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Agreed Daily Wage (₹)</label>
+          <input type="number" id="invite-wage-input" class="form-input" value="750" />
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="App.handleGenerateInvite()">Generate Passkey (e.g. SC-XXXX)</button>
+      </div>
+
+      <h4 style="font-size: 0.9rem; font-weight: 700; margin-bottom: 10px;">Unredeemed & Active Passkeys</h4>
+      <div id="invite-codes-list">
+        <!-- List of invites -->
+      </div>
+    </div>
+  </div>
+
+  <!-- 5. Ledger Entry Modal -->
+  <div id="ledger-entry-modal" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title">Record Financial Ledger Transaction</h3>
+        <button class="modal-close" onclick="App.closeModal('ledger-entry-modal')">&times;</button>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Transaction Column Type</label>
+        <select id="ledger-entry-type" class="form-select">
+          <option value="paid">Column 1 — Paid to Worker / Earned (+)</option>
+          <option value="used">Column 2 — Worker Paying / Used (-)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Category</label>
+        <select id="ledger-entry-category" class="form-select">
+          <option value="Salary Payout">Salary Payout</option>
+          <option value="Advance Given">Advance Given</option>
+          <option value="Overtime Pay">Overtime Pay</option>
+          <option value="Tools/Materials">Tools / Materials Purchase</option>
+          <option value="Fuel/Site Expense">Fuel / Site Expense</option>
+          <option value="Advance Repayment">Advance Repayment</option>
+          <option value="Deduction">Deduction</option>
+          <option value="Allowance">Allowance</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Amount (₹)</label>
+        <input type="number" id="ledger-entry-amount" class="form-input" placeholder="Amount in INR" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Payment Method</label>
+        <select id="ledger-entry-method" class="form-select">
+          <option value="Cash">Cash</option>
+          <option value="UPI">UPI</option>
+          <option value="Bank Transfer">Bank Transfer (NEFT/IMPS)</option>
+          <option value="Company Petty Cash">Company Petty Cash</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Mandatory Explanatory Remark</label>
+        <input type="text" id="ledger-entry-remark" class="form-input" placeholder="e.g. Bought cutting blades & level pipe for slab" required />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Transaction Reference / Voucher # (Optional)</label>
+        <input type="text" id="ledger-entry-ref" class="form-input" placeholder="e.g. UPI-901238 / BILL-441" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Date</label>
+        <input type="date" id="ledger-entry-date" class="form-input" />
+      </div>
+      <button class="btn btn-primary" style="width: 100%;" onclick="App.handleSaveLedgerEntry()">Save Ledger Entry</button>
+    </div>
+  </div>
+
+  <!-- 6. Disburse Modal -->
+  <div id="disburse-modal" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title">Disburse Worker Wage</h3>
+        <button class="modal-close" onclick="App.closeModal('disburse-modal')">&times;</button>
+      </div>
+      <input type="hidden" id="disburse-worker-id" />
+      <div style="margin-bottom: 12px;">
+        <h4 id="disburse-worker-name" style="font-size: 1.1rem; font-weight: 700;">Worker Name</h4>
+        <p style="font-size: 0.8rem; color: #64748b;">UPI: <span id="disburse-upi-id"></span></p>
+        <p style="font-size: 0.8rem; color: #64748b;" id="disburse-bank-info"></p>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Net Wage Amount (₹)</label>
+        <input type="number" id="disburse-amount" class="form-input" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Payment Channel</label>
+        <select id="disburse-method" class="form-select">
+          <option value="UPI">UPI Transfer (Instant)</option>
+          <option value="Bank Transfer">Direct Bank Transfer</option>
+          <option value="Cash">Cash Handover</option>
+          <option value="Card">Debit / Corporate Card</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">UTR / Transaction Reference</label>
+        <input type="text" id="disburse-ref" class="form-input" placeholder="e.g. UPI Ref / Bank UTR" />
+      </div>
+
+      <div style="display: flex; gap: 8px; margin-top: 14px;">
+        <a id="disburse-upi-btn" href="#" class="btn btn-upi" style="flex: 1;" target="_blank">Pay via UPI Deep Link</a>
+        <button class="btn btn-success" style="flex: 1;" onclick="App.handleConfirmDisburse()">Confirm Disbursal</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 7. Printable Wage Slip Modal -->
+  <div id="wage-slip-modal" class="modal-overlay">
+    <div class="modal-card" style="max-width: 640px;">
+      <div class="modal-header modal-actions-print-hide">
+        <h3 class="modal-title">Detailed Wage Slip</h3>
+        <button class="modal-close" onclick="App.closeModal('wage-slip-modal')">&times;</button>
+      </div>
+
+      <div class="wage-slip-box">
+        <div class="slip-firm-header">
+          <h2>Krishna Enterprises</h2>
+          <p>Construction Contractors & Civil Engineers • Sector 62, Noida, UP</p>
+          <p style="font-size: 0.75rem; margin-top: 4px;">WAGE SLIP / SALARY DISBURSAL VOUCHER</p>
+        </div>
+
+        <div class="slip-grid">
+          <div>
+            <div><strong>Slip Ref:</strong> <span id="slip-number">WS-0001</span></div>
+            <div><strong>Worker Name:</strong> <span id="slip-worker-name"></span></div>
+            <div><strong>Trade / Role:</strong> <span id="slip-worker-trade"></span></div>
+            <div><strong>Phone:</strong> <span id="slip-worker-phone"></span></div>
+          </div>
+          <div>
+            <div><strong>Date Generated:</strong> <span id="slip-date"></span></div>
+            <div><strong>Assigned Party:</strong> <span id="slip-site-name"></span></div>
+            <div><strong>Status:</strong> <span class="badge badge-success">Audit Verified</span></div>
+          </div>
+        </div>
+
+        <table class="slip-totals-table">
+          <thead>
+            <tr>
+              <th>Attendance Breakdown</th>
+              <th>Earnings (₹)</th>
+              <th>Deductions / Advances (₹)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>
+                Full Days: <span id="slip-full-days">0</span><br>
+                Half Days: <span id="slip-half-days">0</span><br>
+                OT Hours: <span id="slip-ot-hrs">0</span> hrs
+              </td>
+              <td>
+                Base Pay: <span id="slip-base-pay">₹0</span><br>
+                Overtime Pay (1.5x): <span id="slip-ot-pay">₹0</span><br>
+                <strong>Gross Total: <span id="slip-gross-wage">₹0</span></strong>
+              </td>
+              <td>
+                Tools/Expenses: <span id="slip-deductions">₹0</span><br>
+                Recovery: Clean
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="slip-net-payable">
+          <div>
+            <h4 style="font-size: 0.85rem; text-transform: uppercase;">Net Payable Amount</h4>
+            <p style="font-size: 0.75rem; color: #065f46;">Payment Disbursed via Krishna Enterprises Core</p>
+          </div>
+          <h2 id="slip-net-payable" style="font-size: 1.6rem; color: #065f46; font-weight: 800;">₹0</h2>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; margin-top: 30px; font-size: 0.8rem;">
+          <div>Worker Signature / Thumb Impression</div>
+          <div>Authorized Signatory (Krishna Enterprises)</div>
+        </div>
+      </div>
+
+      <div class="modal-actions-print-hide" style="display: flex; gap: 8px; margin-top: 16px;">
+        <button class="btn btn-outline" style="flex: 1;" onclick="App.printWageSlip()">Print / Export PDF</button>
+        <button class="btn btn-secondary" style="flex: 1;" onclick="App.closeModal('wage-slip-modal')">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 8. Worker Join Passkey Modal -->
+  <div id="worker-join-modal" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title">Join Construction Party</h3>
+        <button class="modal-close" onclick="App.closeModal('worker-join-modal')">&times;</button>
+      </div>
+      <p style="font-size: 0.8rem; color: #64748b; margin-bottom: 14px;">Enter the single-use passkey provided by Krishna Enterprises manager to join your construction party.</p>
+      <div class="form-group">
+        <label class="form-label">Enter Passkey (e.g. SC-8421)</label>
+        <input type="text" id="worker-join-code" class="form-input" placeholder="SC-XXXX" style="letter-spacing: 2px; font-weight: 700; text-transform: uppercase;" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Full Name</label>
+        <input type="text" id="worker-join-name" class="form-input" placeholder="Your Full Name" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Mobile Number</label>
+        <input type="tel" id="worker-join-phone" class="form-input" placeholder="+91 9876543210" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">UPI ID (For Wage Payouts)</label>
+        <input type="text" id="worker-join-upi" class="form-input" placeholder="e.g. yourname@upi" />
+      </div>
+      <button class="btn btn-primary" style="width: 100%;" onclick="App.handleRedeemJoinCode()">Redeem Passkey & Join</button>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="/static/js/db.js"></script>
+  <script src="/static/js/geo.js"></script>
+  <script src="/static/js/charts.js"></script>
+  <script src="/static/js/sync.js"></script>
+  <script src="/static/js/app.js"></script>
+</body>
+</html>
